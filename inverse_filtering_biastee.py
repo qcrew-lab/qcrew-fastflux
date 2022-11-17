@@ -23,24 +23,25 @@ def get_step_pulse():
     return np.array([dt*i for i in range(total_len)]), pulse
 
 predistortion_iteration = 0
+folder_name = "biastee_200kHz_20k_reps_6us_length/"
+fit_guess = (0, 1, 10e-6)
 
-y_file = "biastee_200kHz_20k_reps_6us_length/y%d.npz" % predistortion_iteration
-y = np.array(np.load()["arr_0"])
+y_file = folder_name + "y%d.npz" % predistortion_iteration
+y = np.array(np.load(y_file)["arr_0"])
 ts = dt*np.array(range(len(y)))
-# Intervals use to fit exponential and extract pole behaviour.
-# There are as many intervals as corrections
-intv = np.array([range(500, 3000)])
+
 # Obtain first correction for the input pulse
-offset = np.average(y[0:20].flatten())
-y -= offset    
+
+intv = np.array([range(500, 3000)]) # fit interval
+offset = np.average(y[0:20].flatten()) # voltage offset of the pulse
+y -= offset # correct pulse for voltage offset (?)
 
 # Fit function
 def exp_func(t, A, B, tau):
     return A*0 + B*np.exp(-t/tau)
 #print(ts[interval])
 popt = opt.curve_fit(exp_func, ts[intv].flatten(), 
-                    y[intv].flatten(), p0=(0, 1, 10e-6))[0]
-print(popt)
+                    y[intv].flatten(), p0=fit_guess)[0]
 
 A, B, tau = tuple(popt)
 # Extracting pole behaviour from the fit
@@ -56,8 +57,7 @@ _, predist_target_pulse = sig.dlsim(H_correction, target_pulse, t = ts)
 
 fig, axes = plt.subplots(3, 1)
 axes[0].set_title("Filter response")
-#axes[0].plot(ts, train_pulse, label = "input")
-axes[0].plot(ts, y, label = "output")
+axes[0].plot(dt*np.array(range(len(y))), y, label = "output")
 axes[0].legend()
 axes[1].set_title("Exponential fit to extract poles")
 axes[1].plot(ts[intv].flatten(), y[intv].flatten())
@@ -65,11 +65,17 @@ axes[1].plot(ts[intv].flatten(), exp_func(ts[intv].flatten(), *list(popt)))
 axes[2].set_title('Predistorted pulse')
 axes[2].plot(ts, target_pulse)
 axes[2].plot(ts, predist_target_pulse)
+plt.show()
 
 # Normalize pulse before saving
 predist_target_pulse /= abs(max(predist_target_pulse))
-np.savez("biastee_200kHz_20k_reps_6us_length/x%d" % (predistortion_iteration + 1), 
+np.savez(folder_name + "x%d" % (predistortion_iteration + 1), 
          oct_pulse = predist_target_pulse)
+
+print("##########  REPORT  ##########")
+print("Fit interval: ", np.min(intv), "to", np.max(intv))
+print("Fit initial guess: ", fit_guess)
+print("Fit optimized parameters: ", popt)
 
 # Load response to predistorted pulse
 # predistorted_output = np.load("bias_tee_step_response/predistorted_square_6us_200kHz_biastee.npz")["arr_0"]
